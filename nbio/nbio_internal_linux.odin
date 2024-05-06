@@ -9,6 +9,7 @@ import "core:fmt"
 import "core:mem"
 import "core:net"
 import "core:os"
+import "core:sys/linux"
 import "core:sys/unix"
 
 import io_uring "_io_uring"
@@ -209,6 +210,7 @@ accept_enqueue :: proc(io: ^IO, completion: ^Completion, op: ^Op_Accept) {
 		os.Socket(op.socket),
 		cast(^os.SOCKADDR)&op.sockaddr,
 		&op.sockaddrlen,
+		1 << uint(linux.Open_Flags_Bits.NONBLOCK),
 	)
 	if err == .Submission_Queue_Full {
 		queue.push_back(&io.unqueued, completion)
@@ -232,7 +234,7 @@ accept_callback :: proc(io: ^IO, completion: ^Completion, op: ^Op_Accept) {
 	}
 
 	client := net.TCP_Socket(completion.result)
-	err    := _prepare_socket(client)
+	err    := net.set_option(client, .TCP_Nodelay, true)
 	source := sockaddr_storage_to_endpoint(&op.sockaddr)
 
 	op.callback(completion.user_data, client, source, err)
